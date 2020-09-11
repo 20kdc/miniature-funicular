@@ -1,0 +1,24 @@
+     1                                  ; nasm test.asm -l test.lst
+     2                                  bits 32
+     3                                  org 0
+     4 00000000 E800000000              call aftercall
+     5                                  aftercall:
+     6                                  ; simplifies the maths a little: everything is origin-relative
+     7 00000005 812C24[05000000]        sub dword [esp], aftercall
+     8                                  ; push text
+     9 0000000C 8B0424                  mov eax, [esp]
+    10 0000000F 05[2A000000]            add eax, text
+    11 00000014 50                      push eax
+    12                                  ; resolve LoadLibraryA address VA, read it & call it
+    13                                  ; translation from RVA->VA is assisted by relativity
+    14 00000015 8B442404                mov eax, [esp + 4]
+    15 00000019 0580808080              add eax, 0x80808080
+    16 0000001E 8B00                    mov eax, [eax]
+    17 00000020 FFD0                    call eax
+    18                                  ; resolve entrypoint RVA and jump to it
+    19 00000022 58                      pop eax
+    20 00000023 0580808080              add eax, 0x80808080
+    21 00000028 FFE0                    jmp eax
+    22                                  ; target library is appended 
+    23                                  text:
+    24                                  

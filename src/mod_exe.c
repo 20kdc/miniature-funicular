@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 // -- global file --
 
@@ -12,6 +13,20 @@ FILE * file;
 void closeFile() {
 	fclose(file);
 }
+
+// -- structures --
+
+typedef struct {
+	char name[8];
+	uint32_t virtualSize;
+	uint32_t rva;
+	uint32_t rawDataSize;
+	uint32_t fileAddress;
+	uint32_t ignoreMe1;
+	uint32_t ignoreMe2;
+	uint32_t ignoreMe3;
+	uint32_t characteristics;
+} PE_SH_t;
 
 // -- file get/put assist --
 
@@ -30,6 +45,7 @@ void put(long at, type val) { \
 GET_PUT_PAIR(uint32_t, getU32, setU32)
 GET_PUT_PAIR(uint16_t, getU16, setU16)
 GET_PUT_PAIR(uint8_t, getU8, setU8)
+GET_PUT_PAIR(PE_SH_t, getPESH, setPESH)
 
 int fsMatch(long at, const char * text) {
 	while (1) {
@@ -43,6 +59,16 @@ int fsMatch(long at, const char * text) {
 	return 1;
 }
 
+void fsPut(long at) {
+	while (1) {
+		char c = getU8(at);
+		if (!c)
+			break;
+		putchar(c);
+		at++;
+	}
+}
+
 void padTo(long at) {
 	fseek(file, 0, SEEK_END);
 	long where = ftell(file);
@@ -51,6 +77,14 @@ void padTo(long at) {
 		where++;
 	}
 	fseek(file, at, SEEK_SET);
+}
+
+void w(char c) {
+	fputc(c, file);
+}
+
+void w32(uint32_t x) {
+	fwrite(&x, sizeof(uint32_t), 1, file);
 }
 
 // --
@@ -87,53 +121,120 @@ int main(int argc, char ** argv) {
 
 	// Ok, so now we've roughly confirmed it's correct,
 	//  we need to:
-	// 1. Confirm the location of LoadLibraryA in the import table (RPG_RT always uses it)
+	// 1. Calculate injection details
+	//  a. RVA/FA to create section at
+	//  b. the location of LoadLibraryA in the import table (RPG_RT always uses it)
 	// 2. Create the Injected Section (.vahlen) with the bootstrap code
 	// 3. Laugh evilly as basically no sane injector or code patch will defeat this bootstrap system
 	//  (unless they checksum the EXE, in which case, patch that out!)
 
-	// Part 2: Create the Injected Section
-	// Calculate injection details
+	// Part 1: Calculate injection details
+	// Scan section headers
 	uint32_t newSectionRVA = 0;
 	uint32_t newSectionFA = 0;
+	uint32_t importSectionRVA = 0;
+	uint32_t importSectionFA = 0;
 	for (int i = 0; i < sectionCount; i++) {
-		long target = sectionHeader + (i * 40);
-		uint32_t virtualExt = getU32(target + 0x08) + getU32(target + 0x0C);
+		long target = sectionHeader + (i * sizeof(PE_SH_t));
+		PE_SH_t targetHdr = getPESH(target);
+
+		if ((importRVA >= targetHdr.rva) && (importRVA < (targetHdr.rva + targetHdr.virtualSize))) {
+			importSectionRVA = targetHdr.rva;
+			importSectionFA = targetHdr.fileAddress;
+		}
+
+		uint32_t virtualExt = targetHdr.rva + targetHdr.virtualSize;
 		if (virtualExt & 0xFFF)
 			virtualExt = (virtualExt & ~0xFFF) + 0x1000;
 		if (newSectionRVA < virtualExt)
 			newSectionRVA = virtualExt;
 
-		uint32_t rawExt = getU32(target + 0x10) + getU32(target + 0x14);
+		uint32_t rawExt = targetHdr.fileAddress + targetHdr.rawDataSize;
 		if (rawExt & 0xFFF)
 			rawExt = (rawExt & ~0xFFF) + 0x1000;
 		if (newSectionFA < rawExt)
 			newSectionFA = rawExt;
 	}
+	// Finish up transform
+	if (!importSectionRVA) {
+		puts("Unable to continue: unable to find import table");
+		return 1;
+	}
+	printf("Import RVA: %x\n", importRVA);
+	printf("Import Section RVA: %x\n", importSectionRVA);
+	printf("\nFinding LoadLibraryA...\n");
+	uint32_t importTransform = importSectionFA - importSectionRVA;
+	// Find LoadLibraryA import
+	uint32_t importDirEntry = importRVA + importTransform;
+	uint32_t loadLibraryARVA = 0;
+	while (1) {
+		uint32_t addrTableRVA = getU32(importDirEntry + 0x10);
+		if (!addrTableRVA)
+			break;
+		printf(" ");
+		fsPut(getU32(importDirEntry + 0x0C) + importTransform);
+		printf("\n");
+		while (1) {
+			long name = getU32(addrTableRVA + importTransform);
+			if (!name)
+				break;
+			name += 2 + importTransform;
+			printf("  ");
+			fsPut(name);
+			if (fsMatch(name, "LoadLibraryA")) {
+				loadLibraryARVA = addrTableRVA;
+				printf(" <- (RVA %x)\n", addrTableRVA);
+			} else {
+				printf("\n");
+			}
+			addrTableRVA += 4;
+		}
+		importDirEntry += 0x14;
+	}
+	if (!loadLibraryARVA) {
+		puts("Unable to continue: unable to find LoadLibraryA import");
+		return 1;
+	}
+	printf("\n");
+	// Part 2: Create the Injected Section
 	// Change entry point and image size
-	uint32_t entryPoint = getU32(optHeader + 0x10);
+	uint32_t entryPointRVA = getU32(optHeader + 0x10);
 	setU32(optHeader + 0x10, newSectionRVA);
 	setU32(optHeader + 0x38, newSectionRVA + 0x1000);
 	// Write section header
 	setU16(peHeader + 0x02, sectionCount + 1);
-	long newSection = sectionHeader + (sectionCount * 40);
-	setU32(newSection + 0x00, 'hav.');
-	setU32(newSection + 0x04, '\x00nel');
-	setU32(newSection + 0x08, 0x1000); // virtual size
-	setU32(newSection + 0x0C, newSectionRVA);
-	setU32(newSection + 0x10, 0x1000); // raw data size
-	setU32(newSection + 0x14, newSectionFA);
-	setU32(newSection + 0x18, 0);
-	setU32(newSection + 0x1C, 0);
-	setU32(newSection + 0x20, 0);
-	setU32(newSection + 0x24, 0x60000020);
+	long newSection = sectionHeader + (sectionCount * sizeof(PE_SH_t));
+	PE_SH_t newSectionHdr;
+	strcpy(newSectionHdr.name, ".vahlen");
+	newSectionHdr.virtualSize = 0x1000;
+	newSectionHdr.rva = newSectionRVA;
+	newSectionHdr.rawDataSize = 0x1000;
+	newSectionHdr.fileAddress = newSectionFA;
+	newSectionHdr.ignoreMe1 = 0;
+	newSectionHdr.ignoreMe2 = 0;
+	newSectionHdr.ignoreMe3 = 0;
+	newSectionHdr.characteristics = 0x60000020;
+	setPESH(newSection, newSectionHdr);
 	// Prepare to write section contents
 	padTo(newSectionFA);
-	// Write section contents
-	fputc(0xC3, file);
+	// Write section contents (KEEP IN SYNC WITH LISTING)
+	w(0xE8); w32(0);
+	w(0x81); w(0x2C); w(0x24); w32(0x05);
+	w(0x8B); w(0x04); w(0x24);
+	w(0x05); w32(0x2A);
+	w(0x50);
+	w(0x8B); w(0x44); w(0x24); w(0x04);
+	w(0x05); w32(loadLibraryARVA - newSectionRVA);
+	w(0x8B); w(0x00);
+	w(0xFF); w(0xD0);
+	w(0x58);
+	w(0x05); w32(entryPointRVA - newSectionRVA);
+	w(0xFF); w(0xE0);
+	// Add text
+	fputs(argv[1], file);
+	w(0);
 	// Finish
 	padTo(newSectionFA + 0x1000);
-	puts("ACTUAL TASK NOT YET IMPLEMENTED: the program will instead immediately exit");
 	return 0;
 }
 
