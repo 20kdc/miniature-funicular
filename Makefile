@@ -1,5 +1,6 @@
 # TODO: autodetect for actual Windows users
 COMPILER=i686-w64-mingw32-gcc
+STRIP=i686-w64-mingw32-strip
 INCLUDES=
 
 all: bin/mod.exe bin/test.dll bin/test.exe bin/test.mod.exe
@@ -21,8 +22,10 @@ clean:
 	rm bin/test.dll bin/test.exe bin/mod.exe bin/test.mod.exe
 
 bin/%.dll: src/%_dll.c $(INCLUDES)
-	$(COMPILER) -static-libgcc -Wno-multichar -shared $^ -o $@
+	$(COMPILER) -O3 -flto -static-libgcc -Wno-multichar -shared $^ -o $@
+	$(STRIP) $@
 
 bin/%.exe: src/%_exe.c $(INCLUDES)
-	$(COMPILER) -static-libgcc -Wno-multichar $^ -o $@
+	$(COMPILER) -O3 -flto -static-libgcc -Wno-multichar $^ -o $@
+	$(STRIP) $@
 
