@@ -3,7 +3,7 @@ COMPILER=i686-w64-mingw32-gcc
 STRIP=i686-w64-mingw32-strip
 INCLUDES=
 
-all: bin/mod.exe bin/test.dll bin/test.exe bin/test.mod.exe bin/test.mod.dll
+all: bin/mod.exe bin/test.dll bin/test.exe bin/test.mod.exe bin/test.mod.dll bin/moonboot.dll
 
 test_testdll: bin/test.dll
 	wine rundll32 bin/test.dll
