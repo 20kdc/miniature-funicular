@@ -8,6 +8,7 @@ BOOL WINAPI DllMain(HINSTANCE x, DWORD y, void * z) {
 			MessageBoxA(NULL, "test.dll was attached to the process successfully.", "test.dll", 0);
 			break;
 	}
+	LoadLibraryA("this_library_also_does_not_exist");
 	return TRUE;
 }
 
