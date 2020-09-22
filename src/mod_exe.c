@@ -60,12 +60,17 @@ int fsMatch(long at, const char * text) {
 }
 
 void fsPut(long at) {
+	int moo = 0;
 	while (1) {
 		char c = getU8(at);
 		if (!c)
 			break;
+		moo++;
 		putchar(c);
 		at++;
+		// stupidity insurance
+		if (moo == 0x40)
+			break;
 	}
 }
 
