@@ -17,7 +17,7 @@ static int loader_resolver(void * data, const char * symbol, uint32_t * resolved
 		return 0;
 	}
 	if (!strcmp(symbol, "_playcoff_loader_main_module")) {
-		*resolved = (uint32_t) playcoff_loader_main_module;
+		*resolved = (uint32_t) &playcoff_loader_main_module;
 		return 0;
 	}
 	fprintf(stderr, "Failed to find symbol %s during bootstrap.\n", symbol);
@@ -81,6 +81,7 @@ int main(int argc, char ** argv, char ** env) {
 		fprintf(stderr, "__main symbol not absolute.\n");
 		return 1;
 	}
+	playcoff_loader_main_module = ch;
 	int (*execFn)(int, char **, char **) = (void *) main->value;
 	return execFn(argc, argv, env);
 }
