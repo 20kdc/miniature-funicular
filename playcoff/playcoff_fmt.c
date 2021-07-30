@@ -202,7 +202,7 @@ static playcoff_fmt_symbol_t * playcoff_fmt_symbolByName(playcoff_fmt_head_t * o
 	char shortname[9];
 	for (uint16_t s = 0; s < obj->symbolsCount; s++) {
 		playcoff_fmt_symbol_t * sym = syms + s;
-		if (sym->type == PLAYCOFF_SC_EXTERNAL) {
+		if (sym->storageClass == PLAYCOFF_FMT_SC_EXTERNAL) {
 			const char * name = playcoff_fmt_getSymbolName(obj, sym, shortname);
 			if (!strcmp(name, symbol))
 				return sym;

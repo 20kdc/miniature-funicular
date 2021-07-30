@@ -58,7 +58,7 @@ typedef struct PLAYCOFF_PACKED playcoff_fmt_rel {
 #define PLAYCOFF_FMT_SN_ABS 0xFFFF
 
 // The only one that matters
-#define PLAYCOFF_SC_EXTERNAL 2
+#define PLAYCOFF_FMT_SC_EXTERNAL 2
 
 // 32-bit word added to the target word.
 #define PLAYCOFF_FMT_REL_ABSOLUTE 6
@@ -90,6 +90,7 @@ typedef struct {
 	// Gets a symbol's name. Requires a 9-character buffer that may or may not be used as the storage.
 	const char * (*getSymbolName)(const playcoff_fmt_head_t * obj, const playcoff_fmt_symbol_t * sym, char shortname[9]);
 	// Gets an external-linkage symbol by name, if present.
+	// Keep in mind layouting and resolving makes symbols absolute when possible.
 	// Returns NULL on failure.
 	playcoff_fmt_symbol_t * (*symbolByName)(playcoff_fmt_head_t * obj, const char * symbol);
 } playcoff_fmt_t;
