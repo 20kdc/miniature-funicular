@@ -22,7 +22,9 @@ char * mapRWX(size_t size) {
 
 #endif
 
-typedef struct {
+#define PACKED __attribute__((packed))
+
+typedef struct PACKED {
 	// main
 	uint16_t magic;
 	uint16_t sections;
@@ -44,7 +46,7 @@ typedef struct {
 	uint32_t sectionChars;
 } c1_head_t;
 
-typedef struct {
+typedef struct PACKED {
 	char symbolName[8];
 	uint32_t value;
 	uint16_t sectionNumber;
@@ -53,7 +55,7 @@ typedef struct {
 	uint8_t numberOfAuxSymbols;
 } symbol_t;
 
-typedef struct {
+typedef struct PACKED {
 	uint32_t rva;
 	uint32_t symbol;
 	uint16_t type;
@@ -92,6 +94,7 @@ int main(int argc, char ** argv) {
 			return 1;
 		}
 		rel_t * relocs = (rel_t *) (data + ch->relocsPtr);
+		symbol_t * syms = (symbol_t *) (data + ch->symbolsPtr);
 		fprintf(stderr, "OK: %s\n", ch->sectionName);
 		char * executableArea = mapRWX(ch->rawDataSize);
 		if (!executableArea) {
@@ -100,14 +103,22 @@ int main(int argc, char ** argv) {
 		}
 		memcpy(executableArea, data + ch->rawDataPtr, ch->rawDataSize);
 		for (uint16_t r = 0; r < ch->relocsCount; r++) {
-			symbol_t * sym = (symbol_t *) (data + ch->symbolsPtr + (relocs[r].symbol * 0x12UL));
+			fprintf(stderr, "Relocation type %i\n", relocs[r].type);
+			symbol_t * sym = syms + relocs[r].symbol;
 			char * value = executableArea + sym->value;
-			char ** rvaPtr = (char **) (executableArea + relocs[r].rva);
-			fprintf(stderr, "Relocation command target of EA at %p symbol at %p write at %p\n", executableArea, value, rvaPtr);
+			uintptr_t* rvaPtr = (uintptr_t*) (executableArea + relocs[r].rva);
+			fprintf(stderr, " command target of EA at %p symbol at %p write at %p\n", executableArea, value, rvaPtr);
 			switch (relocs[r].type) {
 				case 6:
 				{
-					*rvaPtr += (intptr_t) value;
+					*rvaPtr += (uintptr_t) value;
+					break;
+				}
+				case 20:
+				{
+					*rvaPtr += (uintptr_t) value;
+					*rvaPtr -= ((uintptr_t) rvaPtr) + 4;
+					fprintf(stderr, "R = %lx\n", (unsigned long) *rvaPtr);
 					break;
 				}
 				default:
@@ -117,6 +128,7 @@ int main(int argc, char ** argv) {
 				}
 			}
 		}
+		fprintf(stderr, "About to enter.\n");
 		int (*execFn)() = (void *) executableArea;
 		printf("%i\n", execFn());
 	}
