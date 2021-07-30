@@ -9,7 +9,7 @@ typedef struct PLAYCOFF_PACKED playcoff_fmt_section {
 	// section
 	char sectionName[8];
 	uint32_t virtSize; // UNUSED IN OBJECT FORMAT
-	uint32_t rva; // UNUSED IN OBJECT FORMAT - PLAYCOFF uses this as RVA
+	uint32_t rva; // UNUSED IN OBJECT FORMAT - PLAYCOFF uses this as VA
 	uint32_t rawDataSize;
 	uint32_t rawDataPtr;
 	uint32_t relocsPtr;
@@ -57,18 +57,22 @@ typedef struct PLAYCOFF_PACKED playcoff_fmt_rel {
 // generally: SN - 1 = index
 #define PLAYCOFF_FMT_SN_ABS 0xFFFF
 
-#define PLAYCOFF_FMT_SN 0xFFFF
+// The only one that matters
+#define PLAYCOFF_SC_EXTERNAL 2
 
 // 32-bit word added to the target word.
 #define PLAYCOFF_FMT_REL_ABSOLUTE 6
 // 32-bit word added to the target word, but then the target position, plus 4, subtracted from the target word.
 #define PLAYCOFF_FMT_REL_RELATIVE 20
 
+#define PLAYCOFF_FMT_PTR(type, obj, ptr) ((type *) (((char *) (obj)) + (ptr)))
+
 // Actual module
 
 typedef struct {
-	// Returns the minimum allocation needed to hold the given object's contents
+	// Returns the minimum allocation needed to hold the given object's contents, assuming perfect alignment.
 	// Returns 0 on either failure or empty object. Just assume it's good and move on.
+	// CLEAR THE ALLOCATION BEFORE USE.
 	size_t (*getMinimumAllocation)(const playcoff_fmt_head_t * obj);
 	// Fixes symbols inside the object's symbol table to match a given target address.
 	// They are modified to the 'absolute' section.
@@ -78,10 +82,15 @@ typedef struct {
 	// Resolves unresolved symbols in the object.
 	// Returns non-zero on failure. Resolver also returns non-zero on failure.
 	int (*resolve)(playcoff_fmt_head_t * obj, void * data, int (*resolver)(void * data, const char * symbol, uint32_t * resolved));
-	// Assuming the above two have been completed, loads the object at the given address.
+	// An always-failing resolver.
+	int (*resolveAlwaysFail)(void * data, const char * symbol, uint32_t * resolved);
+	// Assuming the above has been completed, loads the object at the address given during layout.
 	// Returns non-zero on failure.
-	int (*load)(playcoff_fmt_head_t * obj, uint32_t address);
+	int (*load)(playcoff_fmt_head_t * obj);
+	// Gets a symbol's name. Requires a 9-character buffer that may or may not be used as the storage.
+	const char * (*getSymbolName)(const playcoff_fmt_head_t * obj, const playcoff_fmt_symbol_t * sym, char shortname[9]);
 	// Gets an external-linkage symbol by name, if present.
+	// Returns NULL on failure.
 	playcoff_fmt_symbol_t * (*symbolByName)(playcoff_fmt_head_t * obj, const char * symbol);
 } playcoff_fmt_t;
 
