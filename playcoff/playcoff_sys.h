@@ -17,3 +17,5 @@ typedef struct {
 #define PLAYCOFF_PLATFORM_UNIX 0
 #define PLAYCOFF_PLATFORM_WINDOWS 1
 
+extern const playcoff_sys_t playcoff_sys;
+

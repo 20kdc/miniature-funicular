@@ -94,4 +94,5 @@ typedef struct {
 	playcoff_fmt_symbol_t * (*symbolByName)(playcoff_fmt_head_t * obj, const char * symbol);
 } playcoff_fmt_t;
 
+extern playcoff_fmt_t playcoff_fmt;
 

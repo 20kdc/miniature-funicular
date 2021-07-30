@@ -5,8 +5,17 @@
 #include "playcoff_fmt.h"
 #include "playcoff_sys.h"
 
-extern playcoff_sys_t playcoff_sys;
-extern playcoff_fmt_t playcoff_fmt;
+static int loader_resolver(void * data, const char * symbol, uint32_t * resolved) {
+	if (!strcmp(symbol, "_playcoff_sys")) {
+		*resolved = (uint32_t) &playcoff_sys;
+		return 0;
+	}
+	if (!strcmp(symbol, "_playcoff_fmt")) {
+		*resolved = (uint32_t) &playcoff_fmt;
+		return 0;
+	}
+	return 1;
+}
 
 int main(int argc, char ** argv) {
 	if (argc != 2) {
@@ -47,7 +56,7 @@ int main(int argc, char ** argv) {
 			return 1;
 		}
 		fprintf(stderr, "Resolve.\n");
-		if (playcoff_fmt.resolve(ch, NULL, playcoff_fmt.resolveAlwaysFail)) {
+		if (playcoff_fmt.resolve(ch, NULL, loader_resolver)) {
 			fprintf(stderr, "Failed resolve.\n");
 			return 1;
 		}

@@ -130,8 +130,20 @@ static int playcoff_fmt_layout(playcoff_fmt_head_t * obj, uint32_t address) {
 // Resolver
 
 static int playcoff_fmt_resolve(playcoff_fmt_head_t * obj, void * data, int (*resolver)(void * data, const char * symbol, uint32_t * resolved)) {
-	// Not implemented.
-	fprintf(stderr, "Resolver not implemented, but won't fail.\n");
+	PLAYCOFF_FMT_SYMS;
+	char shortname[9];
+	for (uint16_t s = 0; s < obj->symbolsCount; s++) {
+		playcoff_fmt_symbol_t * sym = syms + s;
+		if (sym->sectionNumber == PLAYCOFF_FMT_SN_BSS_URS) {
+			const char * name = playcoff_fmt_getSymbolName(obj, sym, shortname);
+			uint32_t val;
+			if (resolver(data, name, &val))
+				return 1;
+			sym->sectionNumber = PLAYCOFF_FMT_SN_ABS;
+			sym->value = val;
+		}
+		s += sym->numberOfAuxSymbols;
+	}
 	return 0;
 }
 static int playcoff_fmt_resolveAlwaysFail(void * data, const char * symbol, uint32_t * resolved) {
