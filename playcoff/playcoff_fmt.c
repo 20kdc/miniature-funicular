@@ -22,6 +22,12 @@ static const char * playcoff_fmt_getSymbolName(const playcoff_fmt_head_t * obj, 
 
 // Layout common
 
+static int playcoff_fmt_ignoreSection(const playcoff_fmt_section_t * se) {
+	if (se->sectionChars & PLAYCOFF_FMT_SECCHR_REMOVE)
+		return 1;
+	return 0;
+}
+
 static const char * playcoff_fmt_basicChecks(const playcoff_fmt_head_t * obj) {
 	if (obj->magic != PLAYCOFF_FMT_MAGIC_I386)
 		return "Bad magic.";
@@ -83,6 +89,8 @@ static size_t playcoff_fmt_getMinimumAllocation(const playcoff_fmt_head_t * obj)
 	size_t totalSize = 0;
 	for (uint16_t s = 0; s < obj->sectionCount; s++) {
 		const playcoff_fmt_section_t * se = obj->sections + s;
+		if (playcoff_fmt_ignoreSection(se))
+			continue;
 		totalSize += playcoff_fmt_getPadding(se, totalSize);
 		totalSize += se->rawDataSize;
 	}
@@ -108,6 +116,8 @@ static int playcoff_fmt_layout(playcoff_fmt_head_t * obj, uint32_t address) {
 	// Sections
 	for (uint16_t s = 0; s < obj->sectionCount; s++) {
 		playcoff_fmt_section_t * se = obj->sections + s;
+		if (playcoff_fmt_ignoreSection(se))
+			continue;
 		address += playcoff_fmt_getPadding(se, address);
 		se->rva = address;
 		address += se->rawDataSize;
@@ -157,7 +167,11 @@ static int playcoff_fmt_load(playcoff_fmt_head_t * obj) {
 	PLAYCOFF_FMT_SYMS;
 	for (uint16_t s = 0; s < obj->sectionCount; s++) {
 		playcoff_fmt_section_t * se = obj->sections + s;
-		memcpy((void *) se->rva, ((char *) obj) + se->rawDataPtr, se->rawDataSize);
+		if (playcoff_fmt_ignoreSection(se))
+			continue;
+		// If se->rawDataPtr == 0, this is a BSS *section*
+		if (se->rawDataPtr)
+			memcpy((void *) se->rva, ((char *) obj) + se->rawDataPtr, se->rawDataSize);
 		playcoff_fmt_rel_t * relocs = (playcoff_fmt_rel_t *) (data + se->relocsPtr);
 		for (uint16_t r = 0; r < se->relocsCount; r++) {
 			// fprintf(stderr, "Relocation type %i\n", relocs[r].type);
@@ -197,12 +211,12 @@ static int playcoff_fmt_load(playcoff_fmt_head_t * obj) {
 
 // Symbol Utilities
 
-static playcoff_fmt_symbol_t * playcoff_fmt_symbolByName(playcoff_fmt_head_t * obj, const char * symbol) {
+static playcoff_fmt_symbol_t * playcoff_fmt_symbolByName(playcoff_fmt_head_t * obj, const char * symbol, uint8_t ofClass) {
 	PLAYCOFF_FMT_SYMS;
 	char shortname[9];
 	for (uint16_t s = 0; s < obj->symbolsCount; s++) {
 		playcoff_fmt_symbol_t * sym = syms + s;
-		if (sym->storageClass == PLAYCOFF_FMT_SC_EXTERNAL) {
+		if (sym->storageClass == ofClass) {
 			const char * name = playcoff_fmt_getSymbolName(obj, sym, shortname);
 			if (!strcmp(name, symbol))
 				return sym;

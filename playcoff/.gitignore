@@ -1,5 +1,4 @@
-test.obj
-test2.obj
+*.obj
 loader
 loader.exe
 

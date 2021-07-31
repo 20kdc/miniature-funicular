@@ -11,6 +11,7 @@ typedef struct PLAYCOFF_PACKED playcoff_fmt_section {
 	uint32_t virtSize; // UNUSED IN OBJECT FORMAT
 	uint32_t rva; // UNUSED IN OBJECT FORMAT - PLAYCOFF uses this as VA
 	uint32_t rawDataSize;
+	// Can be 0 for a BSS section, which is distinct from a BSS symbol.
 	uint32_t rawDataPtr;
 	uint32_t relocsPtr;
 	uint32_t linesPtr;
@@ -57,8 +58,15 @@ typedef struct PLAYCOFF_PACKED playcoff_fmt_rel {
 // generally: SN - 1 = index
 #define PLAYCOFF_FMT_SN_ABS 0xFFFF
 
-// The only one that matters
+// The only one that matters, usually.
 #define PLAYCOFF_FMT_SC_EXTERNAL 2
+// Useful for finding sections.
+#define PLAYCOFF_FMT_SC_STATIC 3
+
+// All of the things in this are useless
+// 0x800: REMOVE
+// 0x200: INFO
+#define PLAYCOFF_FMT_SECCHR_REMOVE 0x00000A00
 
 // 32-bit word added to the target word.
 #define PLAYCOFF_FMT_REL_ABSOLUTE 6
@@ -92,7 +100,7 @@ typedef struct {
 	// Gets an external-linkage symbol by name, if present.
 	// Keep in mind layouting and resolving makes symbols absolute when possible.
 	// Returns NULL on failure.
-	playcoff_fmt_symbol_t * (*symbolByName)(playcoff_fmt_head_t * obj, const char * symbol);
+	playcoff_fmt_symbol_t * (*symbolByName)(playcoff_fmt_head_t * obj, const char * symbol, uint8_t ofClass);
 } playcoff_fmt_t;
 
 extern playcoff_fmt_t playcoff_fmt;

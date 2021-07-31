@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -18,6 +19,10 @@ static int loader_resolver(void * data, const char * symbol, uint32_t * resolved
 	}
 	if (!strcmp(symbol, "_playcoff_loader_main_module")) {
 		*resolved = (uint32_t) &playcoff_loader_main_module;
+		return 0;
+	}
+	if (!strcmp(symbol, "_atexit")) {
+		*resolved = (uint32_t) atexit;
 		return 0;
 	}
 	fprintf(stderr, "Failed to find symbol %s during bootstrap.\n", symbol);
@@ -71,8 +76,29 @@ int main(int argc, char ** argv, char ** env) {
 		fprintf(stderr, "Failed load.\n");
 		return 1;
 	}
+	// Do this now...
+	playcoff_loader_main_module = ch;
+	// Run stuff
+	playcoff_fmt_symbol_t * cxx = playcoff_fmt.symbolByName(ch, ".ctors", PLAYCOFF_FMT_SC_STATIC);
+	if (cxx) {
+		fprintf(stderr, "C++ Constructors (GNU) detected, running.\n");
+		if (cxx->sectionNumber != PLAYCOFF_FMT_SN_ABS) {
+			fprintf(stderr, ".ctors symbol not absolute.\n");
+			return 1;
+		} else if (cxx->numberOfAuxSymbols < 1) {
+			fprintf(stderr, ".ctors symbol has no aux.\n");
+			return 1;
+		}
+		// use the aux
+		uint32_t len = ((uint32_t *) (cxx + 1))[0];
+		void (**consFns)() = (void *) cxx->value;
+		size_t count = len / 4;
+		for (size_t i = 0; i < count; i++) {
+			consFns[i]();
+		}
+	}
 	fprintf(stderr, "About to enter.\n");
-	playcoff_fmt_symbol_t * main = playcoff_fmt.symbolByName(ch, "__main");
+	playcoff_fmt_symbol_t * main = playcoff_fmt.symbolByName(ch, "__main", PLAYCOFF_FMT_SC_EXTERNAL);
 	if (!main) {
 		fprintf(stderr, "No __main symbol.\n");
 		return 1;
@@ -81,7 +107,6 @@ int main(int argc, char ** argv, char ** env) {
 		fprintf(stderr, "__main symbol not absolute.\n");
 		return 1;
 	}
-	playcoff_loader_main_module = ch;
 	int (*execFn)(int, char **, char **) = (void *) main->value;
 	return execFn(argc, argv, env);
 }
