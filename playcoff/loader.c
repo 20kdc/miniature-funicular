@@ -29,6 +29,28 @@ static int loader_resolver(void * data, const char * symbol, uint32_t * resolved
 	return 1;
 }
 
+static int attemptToExecuteConstructorSection(const char * csn) {
+	playcoff_fmt_symbol_t * cxx = playcoff_fmt.symbolByName(playcoff_loader_main_module, csn, PLAYCOFF_FMT_SC_STATIC);
+	if (cxx) {
+		fprintf(stderr, "C++ Constructors (%s) detected, running.\n", csn);
+		if (cxx->sectionNumber != PLAYCOFF_FMT_SN_ABS) {
+			fprintf(stderr, "Symbol not absolute.\n");
+			return 1;
+		} else if (cxx->numberOfAuxSymbols < 1) {
+			fprintf(stderr, "Symbol has no aux.\n");
+			return 1;
+		}
+		// use the aux
+		uint32_t len = ((uint32_t *) (cxx + 1))[0];
+		void (**consFns)() = (void *) cxx->value;
+		size_t count = len / 4;
+		for (size_t i = 0; i < count; i++) {
+			consFns[i]();
+		}
+	}
+	return 0;
+}
+
 int main(int argc, char ** argv, char ** env) {
 	if (argc < 2) {
 		fprintf(stderr, "Needs initial module.\n");
@@ -79,24 +101,8 @@ int main(int argc, char ** argv, char ** env) {
 	// Do this now...
 	playcoff_loader_main_module = ch;
 	// Run stuff
-	playcoff_fmt_symbol_t * cxx = playcoff_fmt.symbolByName(ch, ".ctors", PLAYCOFF_FMT_SC_STATIC);
-	if (cxx) {
-		fprintf(stderr, "C++ Constructors (GNU) detected, running.\n");
-		if (cxx->sectionNumber != PLAYCOFF_FMT_SN_ABS) {
-			fprintf(stderr, ".ctors symbol not absolute.\n");
-			return 1;
-		} else if (cxx->numberOfAuxSymbols < 1) {
-			fprintf(stderr, ".ctors symbol has no aux.\n");
-			return 1;
-		}
-		// use the aux
-		uint32_t len = ((uint32_t *) (cxx + 1))[0];
-		void (**consFns)() = (void *) cxx->value;
-		size_t count = len / 4;
-		for (size_t i = 0; i < count; i++) {
-			consFns[i]();
-		}
-	}
+	if (attemptToExecuteConstructorSection(".ctors") || attemptToExecuteConstructorSection(".CRT$XCU"))
+		return 1;
 	fprintf(stderr, "About to enter.\n");
 	playcoff_fmt_symbol_t * main = playcoff_fmt.symbolByName(ch, "__main", PLAYCOFF_FMT_SC_EXTERNAL);
 	if (!main) {
