@@ -2,7 +2,7 @@
 COMPILER=i686-w64-mingw32-gcc
 STRIP=i686-w64-mingw32-strip
 INCLUDES=
-OUTPUTS= bin/mod.exe bin/test.dll bin/test.exe bin/test.mod.exe bin/test.mod.dll bin/moonboot.dll
+OUTPUTS= bin/mod.exe bin/test.dll bin/test.exe bin/test.mod.exe bin/test.mod.dll bin/moonboot.dll bin/cmdboot.dll
 
 all: $(OUTPUTS)
 

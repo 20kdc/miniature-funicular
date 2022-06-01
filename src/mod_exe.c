@@ -177,16 +177,31 @@ int main(int argc, char ** argv) {
 		if (!addrTableRVA)
 			break;
 		printf(" ");
-		fsPut(getU32(importDirEntry + 0x0C) + importTransform);
+		int isDefinitelyKernel32 = 0;
+		long libName = getU32(importDirEntry + 0x0C) + importTransform;
+		fsPut(libName);
+		if (fsMatch(libName, "KERNEL32.dll")) {
+			isDefinitelyKernel32 = 1;
+			printf(" (definitely kernel32)");
+		}
 		printf("\n");
 		while (1) {
 			long name = getU32(addrTableRVA + importTransform);
 			if (!name)
 				break;
-			name += 2 + importTransform;
-			printf("  ");
-			fsPut(name);
-			if (fsMatch(name, "LoadLibraryA")) {
+			printf("  %lx ", name);
+			int isLLA = 0;
+			if ((name == 0x7C801D77) && isDefinitelyKernel32) {
+				isLLA = 1;
+				printf("[LoadLibraryA ordinal]");
+			} else {
+				name += 2 + importTransform;
+				fsPut(name);
+				if (fsMatch(name, "LoadLibraryA")) {
+					isLLA = 1;
+				}
+			}
+			if (isLLA) {
 				loadLibraryARVA = addrTableRVA;
 				printf(" <- (RVA %x)\n", addrTableRVA);
 			} else {
