@@ -1,8 +1,8 @@
 # TODO: autodetect for actual Windows users
 COMPILER=i686-w64-mingw32-gcc
 STRIP=i686-w64-mingw32-strip
-INCLUDES=
-OUTPUTS= bin/mod.exe bin/test.dll bin/test.exe bin/test.mod.exe bin/test.mod.dll bin/moonboot.dll bin/cmdboot.dll
+INCLUDES=src/nootnoot.h
+OUTPUTS= bin/mod.exe bin/test.dll bin/test.exe bin/test.mod.exe bin/test.mod.dll bin/moonboot.dll bin/cmdboot.dll bin/ceboot.exe bin/nootnoot.dll
 
 all: $(OUTPUTS)
 
@@ -27,10 +27,14 @@ clean:
 	rm $(OUTPUTS)
 
 bin/%.dll: src/%_dll.c $(INCLUDES)
-	$(COMPILER) -Os -flto -static-libgcc -Wno-multichar -shared $^ -o $@
+	$(COMPILER) -Os -flto -static-libgcc -Wno-multichar -shared $< -o $@
 	$(STRIP) $@
 
 bin/%.exe: src/%_exe.c $(INCLUDES)
-	$(COMPILER) -Os -flto -static-libgcc -Wno-multichar $^ -o $@
+	$(COMPILER) -Os -flto -static-libgcc -Wno-multichar $< -o $@
+	$(STRIP) $@
+
+bin/ceboot.exe: src/ceboot.c $(INCLUDES)
+	$(COMPILER) -Os -flto -static-libgcc -Wno-multichar -mwindows $< -o $@
 	$(STRIP) $@
 
